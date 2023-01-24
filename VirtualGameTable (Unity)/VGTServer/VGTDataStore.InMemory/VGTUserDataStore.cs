@@ -40,8 +40,6 @@ namespace VGTDataStore.InMemory
         {
             var newUser = new VGTUser(user);
 
-            newUser.Chips = 10000;
-
             using (IDbConnection connection = new SqlConnection(_connectionString))
             {
                 var query = "INSERT INTO Users" +
@@ -53,20 +51,6 @@ namespace VGTDataStore.InMemory
             Users.Add(newUser.UserId, newUser);
 
             return newUser.UserId;
-        }
-
-        public async void ChangeUserChips(Guid UserId, int Chips)
-        {
-            var NewChips = Users[UserId].Chips + Chips;
-
-            using (IDbConnection connection = new SqlConnection(_connectionString))
-            {
-                var query = @"UPDATE Users set Chips = @NewChips WHERE UserId = @UserId";
-                
-                await connection.ExecuteAsync(query, new { NewChips, UserId });
-            }
-
-            Users[UserId].Chips = NewChips;
         }
     } 
 }

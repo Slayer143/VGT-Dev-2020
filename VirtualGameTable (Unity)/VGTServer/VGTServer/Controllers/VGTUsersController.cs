@@ -78,11 +78,15 @@ namespace VGTServer.Controllers
             return NotFound();
         }
 
-        [HttpPost("auth/{login}")]
-        public IActionResult GetVGTUser(string login, [FromBody] string password)
+        [HttpGet("auth/Login={login}&Password={password}")]
+        public IActionResult GetVGTUser(string login, string password)
         {
-            if (_usersDataStore.Users.FirstOrDefault(x => x.Value.Login == login && x.Value.Password == password).Value != null)
-                return Ok(new Answer(_usersDataStore.Users.FirstOrDefault(x => x.Value.Login == login && x.Value.Password == password).Value.UserId, "All data is correct"));
+            foreach (var user in _usersDataStore.Users.Values)
+            {
+                if (login == user.Login
+                    && password == user.Password)
+                    return Ok(new Answer(user.UserId, "OK"));
+            }
 
             return BadRequest(new Answer(Guid.Empty, "Wrong data"));
         }
@@ -106,13 +110,6 @@ namespace VGTServer.Controllers
             Guid id = _usersDataStore.AddUser(restrictedUser);
 
             return Ok(new Answer(id, "Added successfully"));
-        }
-
-        [HttpPatch("changeChips/{userId}&{chips}")]
-        public IActionResult ChangeChips(Guid userId, int chips)
-        {
-            _usersDataStore.ChangeUserChips(userId, chips);
-            return Ok("Changed");
         }
     }
 }

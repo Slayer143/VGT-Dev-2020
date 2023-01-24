@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -23,7 +22,7 @@ namespace Assets.Scripts.Registration
         public RegistrationUserModel(string login, string password, string email)
         {
             Login = login;
-            Password = Convert.ToBase64String(MD5.Create().ComputeHash(Encoding.UTF8.GetBytes(password)));
+            Password = password;
             Email = email;
         }
     }

@@ -1,6 +1,8 @@
 ﻿using System;
-using System.Security.Cryptography;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Assets.Scripts.Authorization
 {
@@ -13,7 +15,7 @@ namespace Assets.Scripts.Authorization
         public AuthorizationModel(string login, string password)
         {
             Login = login;
-            Password = Convert.ToBase64String(MD5.Create().ComputeHash(Encoding.UTF8.GetBytes(password)));
+            Password = password;
         }
     }
 }

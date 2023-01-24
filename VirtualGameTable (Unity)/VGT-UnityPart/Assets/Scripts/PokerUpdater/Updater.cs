@@ -3,13 +3,18 @@ using Assets.Scripts.PokerUpdater;
 using Assets.StaticInfo;
 using Newtonsoft.Json;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipes;
 using System.Linq;
 using System.Net;
 using System.Text;
+using TMPro;
+using UnityEditor.UI;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 public class Updater : MonoBehaviour
 {
@@ -40,82 +45,77 @@ public class Updater : MonoBehaviour
 
     private void SwitchToPokerSession()
     {
-        try
-        {
-            _pokerMenu.SetActive(false);
-
-            Instantiate(_pokerGame).SetActive(true);
-        }
-        catch (Exception)
-        {}
+        _pokerMenu.SetActive(false);
+        _pokerGame.SetActive(true);
     }
 
     private int GetPlace(Guid id)
     {
-        try
+        var request = WebRequest.Create($"http://localhost:5000/api/sessions/places/free/{id}");
+        string answer;
+
+        var response = request.GetResponse();
+
+        using (var stream = response.GetResponseStream())
         {
-            var request = WebRequest.Create($"http://localhost:5000/api/sessions/places/free/{id}");
-            string answer;
-
-            var response = request.GetResponse();
-
-            using (var stream = response.GetResponseStream())
+            using (var reader = new StreamReader(stream))
             {
-                using (var reader = new StreamReader(stream))
-                {
-                    answer = reader.ReadToEnd();
-                }
+                answer = reader.ReadToEnd();
             }
-
-            return JsonConvert.DeserializeObject<int[]>(answer).Length;
         }
-        catch (Exception)
-        { return 0; }
+
+        print(answer);
+        print(JsonConvert.DeserializeObject<int[]>(answer).Length);
+
+        return JsonConvert.DeserializeObject<int[]>(answer).Length;
     }
 
     public void EnterLobby(Guid id)
     {
-        try
+        MainInformation.PlayerInformation = new PlayerInfo(new Guid("FCD8C2F0-0AF4-40D8-B08C-BCAF674D83AA"));
+
+        string answer;
+
+        var player = new PokerGamePlayer();
+
+        player.PlayerId = MainInformation.PlayerInformation.UserId;
+
+        print(player.PlayerId);
+
+        player.SeatPlace = GetPlace(id);
+
+        print(player.SeatPlace);
+
+        var request = WebRequest.Create($"http://localhost:5000/api/sessions/{id}");
+        request.ContentType = "application/json";
+        request.Method = "POST";
+
+        var data = JsonConvert.SerializeObject(player);
+
+        var bytes = Encoding.UTF8.GetBytes(data);
+
+        request.ContentLength = bytes.Length;
+
+        using (var writer = request.GetRequestStream())
         {
-            string answer;
-
-            var player = new PokerGamePlayer();
-
-            player.PlayerId = MainInformation.PlayerInformation.UserId;
-
-            player.SeatPlace = GetPlace(id);
-
-            var request = WebRequest.Create($"http://localhost:5000/api/sessions/{id}");
-            request.ContentType = "application/json";
-            request.Method = "POST";
-
-            var data = JsonConvert.SerializeObject(player);
-
-            var bytes = Encoding.UTF8.GetBytes(data);
-
-            request.ContentLength = bytes.Length;
-
-            using (var writer = request.GetRequestStream())
-            {
-                writer.Write(bytes, 0, bytes.Length);
-            }
-
-            var response = request.GetResponse();
-
-            using (var stream = response.GetResponseStream())
-            {
-                using (var reader = new StreamReader(stream))
-                {
-                    answer = reader.ReadToEnd();
-                }
-            }
-
-            MainInformation.SessionInformation = new SessionInfo(id, player.SeatPlace, player.Status, player.UserRole, player.ChipsForGame, player.NowChips);
-
-            SwitchToPokerSession();
+            writer.Write(bytes, 0, bytes.Length);
         }
-        catch (Exception)
-        { }
+
+        var response = request.GetResponse();
+
+        using (var stream = response.GetResponseStream())
+        {
+            using (var reader = new StreamReader(stream))
+            {
+                answer = reader.ReadToEnd();
+            }
+        }
+
+        print(answer);
+
+        SwitchToPokerSession();
+
+        MainInformation.SessionInformation = new SessionInfo(id, player.SeatPlace, player.Status, player.UserRole, player.ChipsForGame, player.NowChips);
     }
 
     private void CreateLobbyList()

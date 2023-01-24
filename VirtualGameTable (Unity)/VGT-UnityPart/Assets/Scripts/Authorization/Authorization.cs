@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
 using System.Net;
 using UnityEngine.UI;
 using System;
@@ -8,7 +10,6 @@ using System.IO;
 using Assets.AnswerModels;
 using Assets.ServerStateControl;
 using Assets.StaticInfo;
-using System.Text;
 
 public class Authorization : MonoBehaviour
 {
@@ -73,21 +74,7 @@ public class Authorization : MonoBehaviour
     {
         string answer;
 
-        var request = WebRequest.Create($"http://localhost:5000/api/users/auth/{model.Login}");
-        request.ContentType = "application/json";
-        request.Method = "POST";
-
-        var data = JsonConvert.SerializeObject(model.Password);
-
-        var bytes = Encoding.UTF8.GetBytes(data);
-
-        request.ContentLength = bytes.Length;
-
-        using (var writer = request.GetRequestStream())
-        {
-            writer.Write(bytes, 0, bytes.Length);
-        }
-
+        var request = WebRequest.Create($"http://localhost:5000/api/users/auth/Login={model.Login}&Password={model.Password}");
         var response = request.GetResponse();
 
         using (var stream = response.GetResponseStream())

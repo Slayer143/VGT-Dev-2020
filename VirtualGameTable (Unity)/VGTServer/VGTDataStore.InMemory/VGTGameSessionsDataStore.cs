@@ -147,7 +147,7 @@ namespace VGTDataStore.InMemory
             GameSessionUsers.FirstOrDefault(x => x.Value.UserId == UserId && x.Value.SessionId == SessionId).Value.UserRoleId = UserRoleId;
         }
 
-        public void ChangeStatus(
+        public async void ChangeStatus(
             Guid SessionId,
             Guid UserId,
             PokerPlayerStatus PlayerStatusId)
@@ -155,13 +155,13 @@ namespace VGTDataStore.InMemory
             using (IDbConnection connection = new SqlConnection(_connectionString))
             {
                 var query = @"UPDATE GameSessionUsers set PlayerStatusId = @PlayerStatusId WHERE SessionId = @SessionId AND UserId = @UserId";
-                connection.Execute(query, new { PlayerStatusId, SessionId, UserId, });
+                await connection.ExecuteAsync(query, new { PlayerStatusId, SessionId, UserId, });
             }
 
             GameSessionUsers.FirstOrDefault(x => x.Value.SessionId == SessionId && x.Value.UserId == UserId).Value.PlayerStatusId = PlayerStatusId;
         }
 
-        public void ChangeChips(
+        public async void ChangeChips(
             Guid SessionId,
             Guid UserId,
             int NowChips)
@@ -169,7 +169,7 @@ namespace VGTDataStore.InMemory
             using (IDbConnection connection = new SqlConnection(_connectionString))
             {
                 var query = @"UPDATE GameSessionUsers set NowChips = @NowChips WHERE SessionId = @SessionId AND UserId = @UserId";
-                connection.Execute(query, new { NowChips, SessionId, UserId, });
+                await connection.ExecuteAsync(query, new { NowChips, SessionId, UserId, });
             }
 
             GameSessionUsers.FirstOrDefault(x => x.Value.SessionId == SessionId && x.Value.UserId == UserId).Value.NowChips = NowChips;
@@ -180,48 +180,13 @@ namespace VGTDataStore.InMemory
             Guid UserId,
             int Bet)
         {
-            var newBet = GameSessionUsers.FirstOrDefault(x => x.Value.SessionId == SessionId && x.Value.UserId == UserId).Value.Bet + Bet;
-
             using (IDbConnection connection = new SqlConnection(_connectionString))
             {
-                var query = @"UPDATE GameSessionUsers set Bet = @newBet WHERE SessionId = @SessionId AND UserId = @UserId";
-                await connection.ExecuteAsync(query, new { newBet, SessionId, UserId, });
+                var query = @"UPDATE GameSessionUsers set Bet = @Bet WHERE SessionId = @SessionId AND UserId = @UserId";
+                await connection.ExecuteAsync(query, new { Bet, SessionId, UserId, });
             }
 
-            try
-            {
-                GameSessionUsers.FirstOrDefault(x => x.Value.SessionId == SessionId && x.Value.UserId == UserId).Value.Bet += Bet;
-                    
-                if (GameSessionUsers.Values.FirstOrDefault(x => x.UserId == UserId).UserRoleId != UserRolesForPoker.Stickman)
-                    ChangeChipsForGame(
-                        SessionId,
-                        UserId,
-                        newBet,
-                        GameSessionUsers.FirstOrDefault(x => x.Value.SessionId == SessionId && x.Value.UserId == UserId).Value.StartingChips);
-                else
-                    ChangeChips(
-                        SessionId,
-                        UserId,
-                        newBet);
-            }
-            catch (Exception)
-            {}
-        }
-
-        public async void ChangeChipsForGame(Guid SessionId,
-            Guid UserId,
-            int Bet,
-            int ChipsForGame)
-        {
-            var NowChipsForGame = ChipsForGame - Bet;
-
-            using (IDbConnection connection = new SqlConnection(_connectionString))
-            {
-                var query = @"UPDATE GameSessionUsers set StartingChips = @NowChipsForGame WHERE SessionId = @SessionId AND UserId = @UserId";
-                await connection.ExecuteAsync(query, new { NowChipsForGame, SessionId, UserId, });
-            }
-
-            GameSessionUsers.FirstOrDefault(x => x.Value.SessionId == SessionId && x.Value.UserId == UserId).Value.StartingChips = NowChipsForGame;
+            GameSessionUsers.FirstOrDefault(x => x.Value.SessionId == SessionId && x.Value.UserId == UserId).Value.Bet = Bet;
         }
 
         public async void ChangeStatus(Guid sessionId, GameSessionStatus status)

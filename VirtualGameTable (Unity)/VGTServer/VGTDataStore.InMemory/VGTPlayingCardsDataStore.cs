@@ -47,10 +47,7 @@ namespace VGTDataStore.InMemory
                     PlayerCards.Add(user.UserId, RandomCards(cardsCopy, 5));
             }
 
-            if (!PlayerResults.ContainsKey(users.First().SessionId))
-                PlayerResults.Add(users.First().SessionId, await Task.Run(() => PrepareResults(PlayerCards)));
-            else
-                PlayerResults[users.First().SessionId] = await Task.Run(() => PrepareResults(PlayerCards));
+            PlayerResults.Add(users.First().SessionId, await Task.Run(() => PrepareResults(PlayerCards)));
         }
 
         private List<PlayingCards> RandomCards(List<PlayingCards> cardsCopy, int iterations)

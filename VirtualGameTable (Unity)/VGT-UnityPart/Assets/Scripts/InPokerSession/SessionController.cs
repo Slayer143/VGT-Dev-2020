@@ -9,17 +9,15 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using Unity.MPE;
+using UnityEditorInternal;
 using UnityEngine;
+using UnityEngine.Assertions.Must;
+using UnityEngine.PlayerLoop;
 using UnityEngine.UI;
 
 public class SessionController : MonoBehaviour
 {
-    [SerializeField]
-    private GameObject _menu;
-
-    [SerializeField]
-    private GameObject _game;
-
     [SerializeField]
     private Text _login;
 
@@ -27,7 +25,7 @@ public class SessionController : MonoBehaviour
     private Text _chips;
 
     [SerializeField]
-    private Text _bank;
+    private Text _nowChips;
 
     [SerializeField]
     private Text _myBet;
@@ -37,6 +35,9 @@ public class SessionController : MonoBehaviour
 
     [SerializeField]
     private Text _buttonStickmanDeal;
+
+    [SerializeField]
+    private GameObject _game;
 
     [SerializeField]
     private GameObject _otherPlayer;
@@ -84,15 +85,6 @@ public class SessionController : MonoBehaviour
     private GameObject _bigBlindButton;
 
     [SerializeField]
-    private Text _minusSmallBlindButton;
-
-    [SerializeField]
-    private Text _plusSmallBlindButton;
-
-    [SerializeField]
-    private GameObject _smallBlindButtons;
-
-    [SerializeField]
     private InputField _cheepsAmount;
 
     [SerializeField]
@@ -128,40 +120,59 @@ public class SessionController : MonoBehaviour
 
     private int _bigBlindValue = 0;
 
+    private int _round;
+
     [SerializeField]
     private Scrollbar _scrollbar;
 
-    private List<Result> _results;
+    private void CreateMainInfo()
+    {
+        MainInformation.PlayerInformation = new PlayerInfo();
+        MainInformation.PlayerInformation.UserId = Guid.Empty;
+        MainInformation.PlayerInformation.RoleId = 0;
+        MainInformation.PlayerInformation.Login = "Local tester";
+        MainInformation.PlayerInformation.Chips = 10000;
+        MainInformation.PlayerInformation.Email = "localtest";
+
+        MainInformation.SessionInformation = new SessionInfo();
+        MainInformation.SessionInformation.ChipsForGame = MainInformation.PlayerInformation.Chips;
+        MainInformation.SessionInformation.NowChips = 0;
+        MainInformation.SessionInformation.SeatPlace = 1;
+        MainInformation.SessionInformation.Status = 0;
+        MainInformation.SessionInformation.UserRole = MainInformation.PlayerInformation.RoleId;
+        MainInformation.SessionInformation.NowSession = new Guid("30CC5CDF-3D1D-446F-8628-3751F834ABC6");
+    }
 
     void Start()
     {
+        //CreateMainInfo();
+
         PrepareGameField();
     }
 
     public void Scroller()
     {
-        _cheepsAmount.text = Convert.ToInt32(_playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).StartingChips * _scrollbar.value).ToString();
+        //_nowChips.text = "Ваша ставка: " + Convert.ToInt32(MainInformation.PlayerInformation.Chips * _scrollbar.value) + MainInformation.SessionInformation.NowChips;
+        if (MainInformation.SessionInformation.Status == 2)
+            _cheepsAmount.text = Convert.ToInt32(MainInformation.PlayerInformation.Chips * _scrollbar.value).ToString();
+        else
+        {
+            if (Convert.ToInt32(MainInformation.PlayerInformation.Chips * _scrollbar.value) < _smallBlindValue)
+                _cheepsAmount.text = _smallBlindValue.ToString();
+            else
+                _cheepsAmount.text = Convert.ToInt32(MainInformation.PlayerInformation.Chips * _scrollbar.value).ToString();
+        }
     }
 
     public void SetValueToNowChips()
     {
-        if (MainInformation.SessionInformation.SeatPlace == _bigBlind
-            && _playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).Bet == 0
-            && Convert.ToInt32(_cheepsAmount.text) < _smallBlindValue * 2)
-            SetBigBlindValue();
-
-        if (MainInformation.SessionInformation.SeatPlace == _smallBlind
-            && _playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).Bet == 0
-            && Convert.ToInt32(_cheepsAmount.text) < 10)
-            SetSmallBlindValue();
-
-        if (Convert.ToInt32(_cheepsAmount.text) < _playersBeforeUpdate.Max(x => x.Bet))
-            _cheepsAmount.text = (_playersBeforeUpdate.Max(x => x.Bet) - _playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).Bet).ToString();
+        _nowChips.text = "Ваша общая ставка: " + (Convert.ToInt32(_cheepsAmount.text) + MainInformation.SessionInformation.NowChips).ToString();
+        _myBet.text = "Bet: " + _cheepsAmount.text;
     }
 
     public void SetSmallBlindValue()
     {
-        _smallBlindValue = 10;
+        _smallBlindValue = 200;
         _cheepsAmount.text = _smallBlindValue.ToString();
     }
 
@@ -173,22 +184,40 @@ public class SessionController : MonoBehaviour
 
     public void Call()
     {
-        _cheepsAmount.text = (_playersBeforeUpdate.Max(x => x.Bet) - _playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).Bet).ToString();
-    }
 
-    public void Check()
-    {
-        SetCheckStatus();
     }
 
     public void PushChips()
     {
-        if (Convert.ToInt32(_cheepsAmount.text) >= 10)
+        if (_smallBlind == MainInformation.SessionInformation.SeatPlace && MainInformation.SessionInformation.Status == 2)
         {
-            PushBet();
+            if (Convert.ToInt32(_cheepsAmount.text) >= 200)
+            {
+                _smallBlindValue = Convert.ToInt32(_cheepsAmount.text);
+                PushBet();
+            }
+            else
+                SetSmallBlindValue();
+        }
+        if (_bigBlind == MainInformation.SessionInformation.SeatPlace && MainInformation.SessionInformation.Status == 2)
+        {
+            if (Convert.ToInt32(_cheepsAmount.text) >= _smallBlindValue * 2)
+            {
+                _bigBlindValue = Convert.ToInt32(_cheepsAmount.text);
+                PushBet();
+            }
+            else
+                SetBigBlindValue();
         }
         else
-            SetSmallBlindValue();
+        {
+            if (Convert.ToInt32(_cheepsAmount.text) >= _smallBlindValue)
+            {
+                PushBet();
+            }
+            else
+                _cheepsAmount.text = _smallBlindValue.ToString();
+        }
     }
 
     private void PushBet()
@@ -208,36 +237,39 @@ public class SessionController : MonoBehaviour
             }
         }
 
-        MainInformation.SessionInformation.ChipsForGame -= Convert.ToInt32(_cheepsAmount.text);
-
-        _playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).Bet += Convert.ToInt32(_cheepsAmount.text);
-
         PushNowChips();
+
+        if (MainInformation.SessionInformation.Status == 2 && _bigBlind != MainInformation.SessionInformation.SeatPlace)
+            SetNextPlayer();
+        else if (MainInformation.SessionInformation.Status == 2 && _bigBlind == MainInformation.SessionInformation.SeatPlace)
+            EndRound();
+        else
+        {
+            if (_playersBeforeUpdate
+                .Where(
+                x => x.Bet == _playersBeforeUpdate
+                .First(y => y.UserRoleId != 1)
+                .Bet && x.PlayerStatusId != 4 
+                && x.Bet != 0)
+                .Count() == _playersBeforeUpdate
+                .Where(x => x.PlayerStatusId != 4 && x.UserRoleId != 1)
+                .Count())
+                EndRound();
+            else
+                SetNextPlayer();
+        }
     }
 
     public void Fall()
     {
-        string answer;
 
-        var request = WebRequest.Create($"http://localhost:5000/api/sessions/SessionId={MainInformation.SessionInformation.NowSession}&UserId={MainInformation.PlayerInformation.UserId}&StatusCode=4");
-        request.Method = "PATCH";
-
-        var response = request.GetResponse();
-
-        using (var stream = response.GetResponseStream())
-        {
-            using (var reader = new StreamReader(stream))
-            {
-                answer = reader.ReadToEnd();
-            }
-        }
     }
 
-    public void SetCheckStatus()
+    private void EndRound()
     {
         string answer;
 
-        var request = WebRequest.Create($"http://localhost:5000/api/sessions/SessionId={MainInformation.SessionInformation.NowSession}&UserId={MainInformation.PlayerInformation.UserId}&StatusCode=5");
+        var request = WebRequest.Create($"http://localhost:5000/api/sessions/endRound/{MainInformation.SessionInformation.NowSession}");
         request.Method = "PATCH";
 
         var response = request.GetResponse();
@@ -271,95 +303,65 @@ public class SessionController : MonoBehaviour
         }
     }
 
+    private void SetNextPlayer()
+    {
+        string answer;
+
+        var request = WebRequest.Create($"http://localhost:5000/api/sessions/setNext/{MainInformation.SessionInformation.NowSession}&{MainInformation.PlayerInformation.UserId}");
+        request.Method = "PATCH";
+
+        var response = request.GetResponse();
+
+        using (var stream = response.GetResponseStream())
+        {
+            using (var reader = new StreamReader(stream))
+            {
+                answer = reader.ReadToEnd();
+            }
+        }
+    }
+
     public void AllIn()
     {
-        _cheepsAmount.text = _playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).StartingChips.ToString();
+        _scrollbar.value = 1;
     }
 
     private void ShowActions()
     {
-        if (MainInformation.SessionInformation.Status == 2 && MainInformation.SessionInformation.SeatPlace == _smallBlind && _playersBeforeUpdate.Where(x => x.Bet == 0).Count() == _playersBeforeUpdate.Count)
+        if (MainInformation.SessionInformation.Status == 2 && MainInformation.SessionInformation.SeatPlace == _smallBlind)
         {
             _smallBlindButton.SetActive(true);
-
             _bigBlindButton.SetActive(false);
-            _callButton.SetActive(false);
-            _checkButton.SetActive(false);
-            _allInButton.SetActive(false);
-            _fallButton.SetActive(false);
-
-            _smallBlindButtons.SetActive(false);
-        }
-        else if (MainInformation.SessionInformation.Status == 2 && MainInformation.SessionInformation.SeatPlace == _smallBlind)
-        {
-            _smallBlindButton.SetActive(true);
-            _callButton.SetActive(true);
-            _allInButton.SetActive(true);
-            _fallButton.SetActive(true);
-            _smallBlindButtons.SetActive(true);
-            _bigBlindButton.SetActive(true);
-
-            _plusSmallBlindButton.text = "+" + _smallBlindValue.ToString();
-            _minusSmallBlindButton.text = "-" + _smallBlindValue.ToString();
-
-            _checkButton.SetActive(false);
-
-            if (_playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).Bet == _playersBeforeUpdate.Max(x => x.Bet))
-                _checkButton.SetActive(true);
         }
 
         if (MainInformation.SessionInformation.Status == 2 && MainInformation.SessionInformation.SeatPlace == _bigBlind)
         {
             _bigBlindButton.SetActive(true);
             _smallBlindButton.SetActive(false);
-            _allInButton.SetActive(true);
-            _smallBlindButtons.SetActive(true);
-
-            _plusSmallBlindButton.text = "+" + _smallBlindValue.ToString();
-            _minusSmallBlindButton.text = "-" + _smallBlindValue.ToString();
-
-            _callButton.SetActive(false);
-            _checkButton.SetActive(false);
-            _fallButton.SetActive(false);
-
-            if (_playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).Bet == _playersBeforeUpdate.Max(x => x.Bet))
-                _checkButton.SetActive(true);
         }
-        else
+
+        if (MainInformation.SessionInformation.Status != 2)
         {
             _allInButton.SetActive(true);
 
-            if (_playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId).Bet == _playersBeforeUpdate.Max(x => x.Bet))
-                _checkButton.SetActive(true);
-            else
+            if (_playersBeforeUpdate
+                .Where(x => x.Bet > _playersBeforeUpdate.First(y => y.UserId == MainInformation.PlayerInformation.UserId).Bet)
+                .Count() == 0
+                && _playersBeforeUpdate.First(x => x.UserId == MainInformation.PlayerInformation.UserId).Bet != 0)
                 _checkButton.SetActive(false);
-
-            if (_playersBeforeUpdate.FirstOrDefault(x => x.Bet == _playersBeforeUpdate.Max(y => y.Bet)).UserId != MainInformation.PlayerInformation.UserId
-                && _playersBeforeUpdate.Where(x => x.Bet == 0).Count() != 0)
-                _callButton.SetActive(true);
             else
+                _checkButton.SetActive(true);
+
+            if (_playersBeforeUpdate.Where(x => x.Bet != 0).Count() == 0)
                 _callButton.SetActive(false);
+            else
+                _callButton.SetActive(true);
 
             _fallButton.SetActive(true);
-
-            _smallBlindButtons.SetActive(true);
-
-            _plusSmallBlindButton.text = "+" + _smallBlindValue.ToString();
-            _minusSmallBlindButton.text = "-" + _smallBlindValue.ToString();
 
             _bigBlindButton.SetActive(false);
             _smallBlindButton.SetActive(false);
         }
-    }
-
-    public void PlusSmallBlind()
-    {
-        _cheepsAmount.text = (Convert.ToInt32(_cheepsAmount.text) + _smallBlindValue).ToString();
-    }
-
-    public void MinusSmallBlind()
-    {
-        _cheepsAmount.text = (Convert.ToInt32(_cheepsAmount.text) - _smallBlindValue).ToString();
     }
 
     private int GetSize()
@@ -380,7 +382,7 @@ public class SessionController : MonoBehaviour
         return JsonConvert.DeserializeObject<int>(answer);
     }
 
-    private void PrepareGameField()
+    private async void PrepareGameField()
     {
         _playersBeforeUpdate = GetPlayersAmount();
 
@@ -405,7 +407,7 @@ public class SessionController : MonoBehaviour
                     _bigBlind = _smallBlind + 1;
 
 
-                _stickmanHandText.text = GetInfo(MainInformation.PlayerInformation.UserId).Login;
+                _stickmanHandText.text = (await GetInfo(MainInformation.PlayerInformation.UserId)).Login;
 
                 for (int i = 0; i < sessionPlayers.Count; i++)
                 {
@@ -417,14 +419,9 @@ public class SessionController : MonoBehaviour
 
                         _newPlayer.transform.SetParent(_otherPlayersCanvas.transform);
 
-                        _newPlayer.GetComponentsInChildren<Canvas>().FirstOrDefault(x => x.name == "FirstCard").enabled = false;
-                        _newPlayer.GetComponentsInChildren<Canvas>().FirstOrDefault(x => x.name == "SecondCard").enabled = false;
-
                         _newPlayer.SetActive(true);
 
-                        _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "Login").text = GetInfo(sessionPlayers[i].UserId).Login;
-
-                        _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "AllChips").text = GetInfo(sessionPlayers[i].UserId).Chips.ToString() + " VGT-coins";
+                        _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "Login").text = (await GetInfo(sessionPlayers[i].UserId)).Login;
                     }
                 }
             }
@@ -433,7 +430,7 @@ public class SessionController : MonoBehaviour
                 _playerHand.SetActive(true);
                 _stickmanHand.SetActive(false);
 
-                _login.text = GetInfo(MainInformation.PlayerInformation.UserId).Login;
+                _login.text = (await GetInfo(MainInformation.PlayerInformation.UserId)).Login;
                 _chips.text = MainInformation.SessionInformation.ChipsForGame + " VGT-coins";
 
                 for (int i = 0; i < sessionPlayers.Count; i++)
@@ -448,19 +445,16 @@ public class SessionController : MonoBehaviour
 
                             _newPlayer.transform.SetParent(_otherPlayersCanvas.transform);
 
-                            _newPlayer.GetComponentsInChildren<Canvas>().FirstOrDefault(x => x.name == "FirstCard").enabled = false;
-                            _newPlayer.GetComponentsInChildren<Canvas>().FirstOrDefault(x => x.name == "SecondCard").enabled = false;
-
                             _newPlayer.SetActive(true);
 
-                            _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "Login").text = GetInfo(sessionPlayers[i].UserId).Login;
+                            _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "Login").text = (await GetInfo(sessionPlayers[i].UserId)).Login;
 
-                            _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "AllChips").text = GetInfo(sessionPlayers[i].UserId).Chips.ToString() + " VGT-coins";
+                            _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "AllChips").text = (await GetInfo(sessionPlayers[i].UserId)).Chips.ToString() + " VGT-coins";
                         }
                         else
                         {
                             _stickmanInfoCanvas.SetActive(true);
-                            _stickmanDeckText.text = GetInfo(sessionPlayers[i].UserId).Login;
+                            _stickmanDeckText.text = (await GetInfo(sessionPlayers[i].UserId)).Login;
 
                             if (sessionPlayers[i].SeatPlace == GetSize())
                                 _smallBlind = 1;
@@ -480,7 +474,7 @@ public class SessionController : MonoBehaviour
         }
     }
 
-    private void AddNew(InGameUsersAnswerModel item)
+    private async void AddNew(InGameUsersAnswerModel item)
     {
         if (item.UserId != MainInformation.PlayerInformation.UserId)
         {
@@ -494,16 +488,13 @@ public class SessionController : MonoBehaviour
 
                 _newPlayer.SetActive(true);
 
-                _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "Login").text = GetInfo(item.UserId).Login;
+                _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "Login").text = (await GetInfo(item.UserId)).Login;
 
-                _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "AllChips").text = GetInfo(item.UserId).Chips.ToString() + " VGT-coins";
-
-                _newPlayer.GetComponentsInChildren<Canvas>().FirstOrDefault(x => x.name == "FirstCard").enabled = false;
-                _newPlayer.GetComponentsInChildren<Canvas>().FirstOrDefault(x => x.name == "SecondCard").enabled = false;
+                _newPlayer.GetComponentsInChildren<Text>().FirstOrDefault(x => x.name == "AllChips").text = (await GetInfo(item.UserId)).Chips.ToString() + " VGT-coins";
             }
             else
             {
-                _stickmanDeckText.text = GetInfo(item.UserId).Login;
+                _stickmanDeckText.text = (await GetInfo(item.UserId)).Login;
 
                 if (item.SeatPlace == GetSize())
                     _smallBlind = 1;
@@ -520,7 +511,7 @@ public class SessionController : MonoBehaviour
         }
     }
 
-    private void DeleteOld(InGameUsersAnswerModel item)
+    private async void DeleteOld(InGameUsersAnswerModel item)
     {
         if (item.UserRoleId == 0)
         {
@@ -529,7 +520,7 @@ public class SessionController : MonoBehaviour
             Destroy(obj.transform.gameObject);
         }
         else
-            _stickmanDeckText.text = GetInfo(item.UserId).Login;
+            _stickmanDeckText.text = (await GetInfo(item.UserId)).Login;
 
         _playersBeforeUpdate.Remove(item);
     }
@@ -552,29 +543,9 @@ public class SessionController : MonoBehaviour
         return JsonConvert.DeserializeObject<int>(answer);
     }
 
-    private int GetChips()
-    {
-        var request = WebRequest.Create($"http://localhost:5000/api/users/info/chips/{MainInformation.PlayerInformation.UserId}");
-        string answer;
-
-        var response = request.GetResponse();
-
-        using (var stream = response.GetResponseStream())
-        {
-            using (var reader = new StreamReader(stream))
-            {
-                answer = reader.ReadToEnd();
-            }
-        }
-
-        return JsonConvert.DeserializeObject<int>(answer);
-    }
-
-    private void UpdateUIWithPlayers()
+    private async void UpdateUIWithPlayers()
     {
         MainInformation.SessionInformation.Status = GetSessionStatus();
-        MainInformation.PlayerInformation.Chips = GetChips();
-        MainInformation.SessionInformation.ChipsForGame = MainInformation.PlayerInformation.Chips;
 
         print($"Now session status: {MainInformation.SessionInformation.Status}");
 
@@ -616,11 +587,6 @@ public class SessionController : MonoBehaviour
             }
         }
 
-        if (_playersBeforeUpdate.Sum(x => x.NowChips) != 0)
-            _bank.text = _playersBeforeUpdate.Sum(x => x.NowChips).ToString();
-        else
-            _bank.text = string.Empty;
-
         foreach (var item in bothHave)
         {
             _playersBeforeUpdate.FirstOrDefault(x => x.UserId == item.UserId).Update(item);
@@ -656,42 +622,32 @@ public class SessionController : MonoBehaviour
 
                         playerCanvas
                         .GetComponentsInChildren<Text>()
-                        .FirstOrDefault(x => x.name == "Bet").text = "Bet " + GetBet(item.UserId).ToString();
+                        .FirstOrDefault(x => x.name == "NowChips").text = "Общая ставка " + (await GetNowChips(item.UserId)).ToString();
+
+                        playerCanvas
+                        .GetComponentsInChildren<Text>()
+                        .FirstOrDefault(x => x.name == "Bet").text = "Bet " + (await GetBet(item.UserId)).ToString();
                     }
-                }
-                else if (item.UserRoleId != 1 && item.UserId != MainInformation.PlayerInformation.UserId)
-                {
-                    _chips.text = item.StartingChips.ToString();
-                    _myBet.text = item.Bet.ToString();
                 }
             }
         }
     }
 
-    public void BecomeStickman()
+    public async void BecomeStickman()
     {
         MainInformation.SessionInformation.UserRole = 1;
         MainInformation.PlayerInformation.RoleId = 1;
 
         var request = WebRequest.Create($"http://localhost:5000/api/sessions/changeRole/{MainInformation.PlayerInformation.UserId}&{MainInformation.SessionInformation.NowSession}&{MainInformation.SessionInformation.UserRole}");
         request.Method = "PATCH";
-        string answer;
 
-        var response = request.GetResponse();
-
-        using (var stream = response.GetResponseStream())
-        {
-            using (var reader = new StreamReader(stream))
-            {
-                answer = reader.ReadToEnd();
-            }
-        }
+        await request.GetResponseAsync();
 
         _playerHand.SetActive(false);
         _stickmanInfoCanvas.SetActive(false);
 
         _stickmanHand.SetActive(true);
-        _stickmanHandText.text = GetInfo(MainInformation.PlayerInformation.UserId).Login;
+        _stickmanHandText.text = (await GetInfo(MainInformation.PlayerInformation.UserId)).Login;
 
         print(MainInformation.PlayerInformation.RoleId);
         print(MainInformation.SessionInformation.UserRole);
@@ -703,272 +659,50 @@ public class SessionController : MonoBehaviour
         {
             if (MainInformation.PlayerInformation != null && MainInformation.SessionInformation != null && _playersBeforeUpdate != null)
             {
-                UpdateUIWithPlayers();
-
                 if (_playersBeforeUpdate.FirstOrDefault(x => x.UserRoleId == 1) == null && MainInformation.PlayerInformation.RoleId != 1)
                     _becomeStickmanButton.SetActive(true);
                 else
                     _becomeStickmanButton.SetActive(false);
 
-                if (_playersCards == null
-                    && _playersBeforeUpdate.Where(x => x.PlayerStatusId == 0).Count() == 0
-                    && MainInformation.SessionInformation.Status == 1
-                    && _playersBeforeUpdate.Count == GetSize())
+                if (_playersCards == null && _playersBeforeUpdate.FirstOrDefault(x => x.PlayerStatusId == 0) == null)
                 {
                     _playerReadyStateButton.SetActive(false);
                     _stickmanReadyStateButton.SetActive(false);
 
+                    print("CARDS COUNT IS ZERO, ALL PLAYERS ARE READY, GAME CAN BE STARTED");
                     if (MainInformation.PlayerInformation.RoleId == 1)
                         StartGameStickmanPart();
                     else
                         StartGamePlayerPart();
 
-                    if (MainInformation.SessionInformation.UserRole != 1)
-                        _playersCardsOnTable.SetActive(true);
+                    //if (_playersBeforeUpdate.Count > 0)
+                    //    ShowPlayerCards();
                 }
-                if (_playersCards != null
-                    && _playersBeforeUpdate.Where(x => x.PlayerStatusId == 0).Count() == 0
-                    && _playersBeforeUpdate.Count == GetSize())
+
+                if (_playersBeforeUpdate.FirstOrDefault(x => x.PlayerStatusId == 2) != null)
                 {
-                    if (_playersBeforeUpdate.Count > 0)
-                        ShowPlayerCards();
-
-                    foreach (var card in _cardsOnTable)
+                    if (_playersBeforeUpdate.FirstOrDefault(x => x.PlayerStatusId == 2).UserId == MainInformation.PlayerInformation.UserId)
                     {
-                        card.SetActive(true);
-                    }
-
-                    foreach (var user in _playersBeforeUpdate)
-                    {
-                        if (user.UserId != MainInformation.PlayerInformation.UserId && user.UserRoleId != 1)
+                        if (_playersBeforeUpdate.FirstOrDefault(x => x.Bet != 0) != null)
                         {
-                            var cards = _otherPlayersCanvas
-                            .GetComponentsInChildren<Canvas>()
-                            .FirstOrDefault(
-                            x => x.name.ToUpper() == user.UserId.ToString().ToUpper()).GetComponentsInChildren<Canvas>();
-
-                            cards.FirstOrDefault(x => x.name == "FirstCard").enabled = true;
-                            cards.FirstOrDefault(x => x.name == "SecondCard").enabled = true;
+                            _smallBlindValue = _playersBeforeUpdate.FirstOrDefault(x => x.Bet != 0).Bet;
                         }
-                    }
 
-                    if (MainInformation.SessionInformation.Status == 2 && _smallBlindValue == 0 || _bigBlindValue == 0)
-                    {
-                        if (_playersBeforeUpdate.Min(x => x.Bet) != 0)
-                            _smallBlindValue = _playersBeforeUpdate.Min(x => x.Bet);
-                        else
-                            _smallBlindValue = _playersBeforeUpdate.Max(x => x.Bet);
-
-                        if (_smallBlindValue == _playersBeforeUpdate.Max(x => x.Bet))
-                            _bigBlindValue = _smallBlindValue * 2;
-                        else
-                            _bigBlindValue = _playersBeforeUpdate.Max(x => x.Bet);
-                    }
-
-                    ShowCards();
-
-                    if (_playersBeforeUpdate.FirstOrDefault(x => x.PlayerStatusId == 2) != null)
-                    {
-                        if (_playersBeforeUpdate.FirstOrDefault(x => x.PlayerStatusId == 2).UserId == MainInformation.PlayerInformation.UserId)
-                        {
-                            _actions.SetActive(true);
-                            ShowActions();
-                        }
-                        else
-                            _actions.SetActive(false);
+                        _actions.SetActive(true);
+                        ShowActions();
                     }
                     else
                         _actions.SetActive(false);
-
-                    if (MainInformation.SessionInformation.Status == 6)
-                    {
-                        _results = GetResults();
-
-                        var winCount = _results.Where(x => x.Combination == _results.Max(y => y.Combination) && x.Value == _results.Max(y => y.Value)).Count();
-
-                        if (winCount == 1)
-                        {
-                            if (_results
-                            .Where(x => x.Combination == _results.Max(y => y.Combination)
-                            && x.Value == _results.Max(y => y.Value))
-                            .ToList()[0]
-                            .UserId == MainInformation.PlayerInformation.UserId)
-                                print("I AM THE WINNER");
-                            else
-                            {
-                                print("I AM NOT THE WINNER");
-                                print($"{_results.Where(x => x.Combination == _results.Max(y => y.Combination) && x.Value == _results.Max(y => y.Value)).ToList()[0].UserId} IS THE WINNER");
-                            }
-
-                        }
-                        else
-                        {
-                            print($"{_results.Where(x => x.Combination == _results.Max(y => y.Combination) && x.Value == _results.Max(y => y.Value)).ToList()[0].UserId} IS THE FIRST WINNER");
-                            print($"{_results.Where(x => x.Combination == _results.Max(y => y.Combination) && x.Value == _results.Max(y => y.Value)).ToList()[1].UserId} IS THE SECOND WINNER");
-                        }
-
-                        System.Threading.Thread.Sleep(10000);
-
-                        ClearTable();
-                        RestartSession();
-                    }
                 }
-            }
-        }
-    }
+                else
+                    _actions.SetActive(false);
 
-    public void ClearTable()
-    {
-        foreach (var item in _cardsOnTable)
-        {
-            item.GetComponent<Image>().sprite = Resources.Load<Sprite>(_resoursesPath + "BackColor_Black");
-            item.SetActive(false);
-        }
+                UpdateUIWithPlayers();
 
-        foreach (var user in _playersBeforeUpdate)
-        {
-            if (user.UserId != MainInformation.PlayerInformation.UserId && user.UserRoleId != 1)
-            {
-                var cards = _otherPlayersCanvas
-                .GetComponentsInChildren<Canvas>()
-                .FirstOrDefault(
-                x => x.name.ToUpper() == user.UserId.ToString().ToUpper()).GetComponentsInChildren<Canvas>();
-
-                cards.FirstOrDefault(x => x.name == "FirstCard").GetComponent<Image>().sprite = Resources.Load<Sprite>(_resoursesPath + "BackColor_Black");
-                cards.FirstOrDefault(x => x.name == "SecondCard").GetComponent<Image>().sprite = Resources.Load<Sprite>(_resoursesPath + "BackColor_Black");
-
-                cards.FirstOrDefault(x => x.name == "FirstCard").enabled = false;
-                cards.FirstOrDefault(x => x.name == "SecondCard").enabled = false;
-            }
-        }
-
-        if (MainInformation.SessionInformation.UserRole != 1)
-        {
-            foreach (var item in _playerCardsInHand)
-            {
-                item.GetComponent<Image>().sprite = Resources.Load<Sprite>(_resoursesPath + "BackColor_Black");
-            }
-
-            _playersCardsOnTable.SetActive(false);
-
-            _actions.SetActive(false);
-
-            _smallBlindValue = 0;
-            _bigBlindValue = 0;
-            _playersCards = null;
-            _results = null;
-        }
-    }
-
-    public void RestartSession()
-    {
-        string answer;
-
-        var request = WebRequest.Create($"http://localhost:5000/api/sessions/restart/{MainInformation.SessionInformation.NowSession}");
-        request.Method = "PATCH";
-
-        var response = request.GetResponse();
-
-        using (var stream = response.GetResponseStream())
-        {
-            using (var reader = new StreamReader(stream))
-            {
-                answer = reader.ReadToEnd();
-            }
-        }
-    }
-
-    public List<Result> GetResults()
-    {
-        string answer;
-
-        print(MainInformation.SessionInformation.NowSession);
-
-        var request = WebRequest.Create($"http://localhost:5000/api/sessions/results/{MainInformation.SessionInformation.NowSession}");
-
-        var response = request.GetResponse();
-
-        using (var stream = response.GetResponseStream())
-        {
-            using (var reader = new StreamReader(stream))
-            {
-                answer = reader.ReadToEnd();
-            }
-        }
-
-        return JsonConvert.DeserializeObject<List<Result>>(answer);
-    }
-
-    public void ShowCards()
-    {
-        var stickmanId = _playersBeforeUpdate.FirstOrDefault(x => x.UserRoleId == 1).UserId;
-
-        if (MainInformation.SessionInformation.UserRole != 1 && MainInformation.SessionInformation.Status == 3)
-        {
-            for (int i = 0; i < 2; i++)
-            {
-                _playerCardsInHand[i].GetComponent<Image>().sprite = Resources
-                .Load<Sprite>(_resoursesPath + _playersCards.FirstOrDefault(x => x.Key == MainInformation.PlayerInformation.UserId).Value[i].CardId.ToString());
-            }
-        }
-
-        if (MainInformation.SessionInformation.Status == 3)
-        {
-            for (int i = 0; i < 3; i++)
-            {
-                _cardsOnTable[i].GetComponent<Image>().sprite = Resources
-                .Load<Sprite>(
-                _resoursesPath +
-                _playersCards
-                .FirstOrDefault(
-                x => x.Key == stickmanId).Value[i].CardId);
-            }
-        }
-        if (MainInformation.SessionInformation.Status == 4)
-        {
-            _cardsOnTable[3].GetComponent<Image>().sprite = Resources
-                .Load<Sprite>(
-                _resoursesPath +
-                _playersCards
-                .FirstOrDefault(
-                x => x.Key == stickmanId).Value[3].CardId);
-        }
-        if (MainInformation.SessionInformation.Status == 5)
-        {
-            _cardsOnTable[4].GetComponent<Image>().sprite = Resources
-                .Load<Sprite>(
-                _resoursesPath +
-                _playersCards
-                .FirstOrDefault(
-                x => x.Key == stickmanId).Value[4].CardId);
-        }
-        if (MainInformation.SessionInformation.Status == 6)
-        {
-            for (int i = 0; i < 5; i++)
-            {
-                _cardsOnTable[i].GetComponent<Image>().sprite = Resources
-                .Load<Sprite>(
-                _resoursesPath +
-                _playersCards
-                .FirstOrDefault(
-                x => x.Key == stickmanId).Value[i].CardId);
-            }
-
-            foreach (var user in _playersBeforeUpdate)
-            {
-                if (user.UserId != MainInformation.PlayerInformation.UserId && user.UserRoleId != 1)
-                {
-                    var cards = _otherPlayersCanvas
-                    .GetComponentsInChildren<Canvas>()
-                    .FirstOrDefault(
-                    x => x.name.ToUpper() == user.UserId.ToString().ToUpper()).GetComponentsInChildren<Canvas>();
-
-                    cards.FirstOrDefault(x => x.name == "FirstCard").GetComponent<Image>().sprite = Resources.Load<Sprite>(_resoursesPath + _playersCards.FirstOrDefault(x => x.Key == user.UserId).Value[0].CardId);
-                    cards.FirstOrDefault(x => x.name == "SecondCard").GetComponent<Image>().sprite = Resources.Load<Sprite>(_resoursesPath + _playersCards.FirstOrDefault(x => x.Key == user.UserId).Value[1].CardId);
-
-                    cards.FirstOrDefault(x => x.name == "FirstCard").enabled = true;
-                    cards.FirstOrDefault(x => x.name == "SecondCard").enabled = true;
-                }
+                if (_smallBlindValue == 0)
+                    _smallBlindValue = _playersBeforeUpdate.Min(x => x.Bet);
+                if (_bigBlindValue == 0 || _bigBlindValue < _smallBlindValue * 2)
+                    _bigBlindValue = _playersBeforeUpdate.Max(x => x.Bet);
             }
         }
     }
@@ -976,26 +710,77 @@ public class SessionController : MonoBehaviour
     private void ShowPlayerCards()
     {
         if (MainInformation.SessionInformation.UserRole != 1)
+        {
             PlayerRole();
+        }
+        else
+        {
+            StickmanRole();
+        }
     }
 
     private void PlayerRole()
     {
         _actions.SetActive(true);
+
+        for (int i = 0; i < 2; i++)
+        {
+            _playerCardsInHand[i].GetComponent<Image>().sprite = Resources
+            .Load<Sprite>(_resoursesPath + _playersCards.FirstOrDefault(x => x.Key == MainInformation.PlayerInformation.UserId).Value[i].CardId.ToString());
+        }
+    }
+
+    private void StickmanRole()
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            _cardsOnTable[i].GetComponent<Image>().sprite = Resources
+            .Load<Sprite>(
+            _resoursesPath +
+            _playersCards
+            .FirstOrDefault(
+                x => x.Key == MainInformation.PlayerInformation.UserId).Value[i].CardId);
+        }
+
+        var usersCopy = _playersBeforeUpdate;
+        usersCopy.Remove(usersCopy.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId));
+
+        foreach (var user in usersCopy)
+        {
+            var cards = _otherPlayersCanvas
+                .GetComponentsInChildren<Canvas>()
+                .FirstOrDefault(
+                x => x.name.ToUpper() == user.UserId.ToString().ToUpper()).GetComponentsInChildren<Canvas>();
+
+            cards.FirstOrDefault(x => x.name == "FirstCard").GetComponent<Image>().sprite = Resources
+            .Load<Sprite>(
+            _resoursesPath +
+            _playersCards
+            .FirstOrDefault(
+                x => x.Key == user.UserId).Value[0].CardId);
+
+            cards.FirstOrDefault(x => x.name == "SecondCard").GetComponent<Image>().sprite = Resources
+            .Load<Sprite>(
+            _resoursesPath +
+            _playersCards
+            .FirstOrDefault(
+                x => x.Key == user.UserId).Value[1].CardId);
+        }
     }
 
     private void StartGamePlayerPart()
     {
-        if (CanStart())
+        if (CanStart() && SetStartedStatusCode())
         {
-            _playersCardsOnTable.SetActive(true);
+            SetFirstPlayer();
+            //_playersCardsOnTable.SetActive(true);
 
-            foreach (var card in _cardsOnTable)
-            {
-                card.SetActive(true);
-            }
+            //foreach (var card in _cardsOnTable)
+            //{
+            //    card.SetActive(true);
+            //}
 
-            _playersCards = new Dictionary<Guid, List<Card>>(GetCards(0));
+            //_playersCards = new Dictionary<Guid, List<Card>>(GetCards(0));
         }
     }
 
@@ -1004,13 +789,12 @@ public class SessionController : MonoBehaviour
         if (CanStart() && SetStartedStatusCode())
         {
             SetFirstPlayer();
+            //foreach (var card in _cardsOnTable)
+            //{
+            //    card.SetActive(true);
+            //}
 
-            foreach (var card in _cardsOnTable)
-            {
-                card.SetActive(true);
-            }
-
-            _playersCards = new Dictionary<Guid, List<Card>>(GetCards(1));
+            //_playersCards = new Dictionary<Guid, List<Card>>(GetCards(1));
         }
     }
 
@@ -1075,6 +859,8 @@ public class SessionController : MonoBehaviour
         if (IsLobbyFilled())
             foreach (var item in _playersBeforeUpdate)
             {
+                print(item.PlayerStatusId);
+
                 if (item.PlayerStatusId == 1)
                     res = true;
                 else
@@ -1120,54 +906,54 @@ public class SessionController : MonoBehaviour
         }
     }
 
-    private InfoAnswerModel GetInfo(Guid id)
+    private async Task<InfoAnswerModel> GetInfo(Guid id)
     {
         var request = WebRequest.Create($"http://localhost:5000/api/users/info/{id}");
         string answer;
 
-        var response = request.GetResponse();
+        var response = await request.GetResponseAsync();
 
         using (var stream = response.GetResponseStream())
         {
             using (var reader = new StreamReader(stream))
             {
-                answer = reader.ReadToEnd();
+                answer = await reader.ReadToEndAsync();
             }
         }
 
         return JsonConvert.DeserializeObject<InfoAnswerModel>(answer);
     }
 
-    private int GetNowChips(Guid id)
+    private async Task<int> GetNowChips(Guid id)
     {
         var request = WebRequest.Create($"http://localhost:5000/api/sessions/nowChips/{MainInformation.SessionInformation.NowSession}&{id}");
         string answer;
 
-        var response = request.GetResponse();
+        var response = await request.GetResponseAsync();
 
         using (var stream = response.GetResponseStream())
         {
             using (var reader = new StreamReader(stream))
             {
-                answer = reader.ReadToEnd();
+                answer = await reader.ReadToEndAsync();
             }
         }
 
         return JsonConvert.DeserializeObject<int>(answer);
     }
 
-    private int GetBet(Guid id)
+    private async Task<int> GetBet(Guid id)
     {
         var request = WebRequest.Create($"http://localhost:5000/api/sessions/bet/{MainInformation.SessionInformation.NowSession}&{id}");
         string answer;
 
-        var response = request.GetResponse();
+        var response = await request.GetResponseAsync();
 
         using (var stream = response.GetResponseStream())
         {
             using (var reader = new StreamReader(stream))
             {
-                answer = reader.ReadToEnd();
+                answer = await reader.ReadToEndAsync();
             }
         }
 
@@ -1192,19 +978,19 @@ public class SessionController : MonoBehaviour
         }
     }
 
-    private void SetReady()
+    private async void SetReady()
     {
         var request = WebRequest.Create($"http://localhost:5000/api/sessions/SessionId={MainInformation.SessionInformation.NowSession}&UserId={MainInformation.PlayerInformation.UserId}&StatusCode=1");
         request.Method = "PATCH";
         string answer;
 
-        var response = request.GetResponse();
+        var response = await request.GetResponseAsync();
 
         using (var stream = response.GetResponseStream())
         {
             using (var reader = new StreamReader(stream))
             {
-                answer = reader.ReadToEnd();
+                answer = await reader.ReadToEndAsync();
             }
         }
 
@@ -1217,20 +1003,20 @@ public class SessionController : MonoBehaviour
             _buttonStickmanDeal.text = "Не готов";
     }
 
-    private void SetNotReady()
+    private async void SetNotReady()
     {
         var request = WebRequest.Create($"http://localhost:5000/api/sessions/SessionId={MainInformation.SessionInformation.NowSession}&UserId={MainInformation.PlayerInformation.UserId}&StatusCode=0");
         request.Method = "PATCH";
 
         string answer;
 
-        var response = request.GetResponse();
+        var response = await request.GetResponseAsync();
 
         using (var stream = response.GetResponseStream())
         {
             using (var reader = new StreamReader(stream))
             {
-                answer = reader.ReadToEnd();
+                answer = await reader.ReadToEndAsync();
             }
         }
 
@@ -1261,30 +1047,15 @@ public class SessionController : MonoBehaviour
         return JsonConvert.DeserializeObject<List<InGameUsersAnswerModel>>(answer);
     }
 
-    public void Exit()
+    public async void ExitFromLobby()
     {
-        try
-        {
-            var request = WebRequest.Create($"http://localhost:5000/api/sessions/leave/{MainInformation.PlayerInformation.UserId}&{MainInformation.SessionInformation.NowSession}");
-            request.Method = "DELETE";
+        var request = WebRequest.Create($"http://localhost:5000/api/sessions/leave/{MainInformation.PlayerInformation.UserId}&{MainInformation.SessionInformation.NowSession}");
+        request.Method = "DELETE";
 
-            request.GetResponseAsync();
+        await request.GetResponseAsync();
 
-            _game.SetActive(false);
-            Destroy(_game);
+        _playersBeforeUpdate.Remove(_playersBeforeUpdate.FirstOrDefault(x => x.UserId == MainInformation.PlayerInformation.UserId));
 
-            _menu.SetActive(true);
-
-            MainInformation.SessionInformation = null;
-        }
-        catch (Exception)
-        {
-            _game.SetActive(false);
-            Destroy(_game);
-
-            _menu.SetActive(true);
-
-            MainInformation.SessionInformation = null;
-        }
+        //Destroy(_game);
     }
 }

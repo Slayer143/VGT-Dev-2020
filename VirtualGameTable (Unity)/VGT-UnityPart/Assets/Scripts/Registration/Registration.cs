@@ -11,7 +11,6 @@ using Assets.AnswerModels;
 using Assets.ServerStateControl;
 using System;
 using Assets.StaticInfo;
-using System.Security.Cryptography;
 
 public class Registration : MonoBehaviour
 {
@@ -108,7 +107,7 @@ public class Registration : MonoBehaviour
     {
         string answer;
 
-        var request = WebRequest.Create($"http://localhost:5000/api/users/register");
+        var request = WebRequest.Create($"http://localhost:5000/api/users/register/");
         request.ContentType = "application/json";
         request.Method = "POST";
 

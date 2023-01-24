@@ -1,4 +1,7 @@
 ﻿using Assets.StaticInfo;
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -104,15 +107,10 @@ public class Switcher : MonoBehaviour
 
     public void SwitchToPokerSession()
     {
-        try
-        {
-            _pokerSettings.SetActive(false);
-            _pokerMenu.SetActive(false);
-            Instantiate(_pokerGame).SetActive(true);
-        }
-        catch (System.Exception)
-        {}
-
+        _pokerSettings.SetActive(false);
+        _pokerMenu.SetActive(false);
+        Instantiate(_pokerGame);
+        _pokerGame.SetActive(true);
     }
 
     public void SwitchFromPokerSession()
@@ -140,20 +138,22 @@ public class Switcher : MonoBehaviour
         _pokerMenu.SetActive(false);
     }
 
+    public void ExitFromLobby()
+    {
+        print("switcher exit!");
+
+        _mainMenu.SetActive(true);
+        _pokerGame.SetActive(false);
+
+        MainInformation.SessionInformation = null;
+    }
+
     public void SwitchToMainMenu(Text result)
     {
-        if (result.text == "All data is correct" || result.text == "Added successfully")
+        if (result.text == "OK" || result.text == "Added successfully")
         {
-            print(MainInformation.PlayerInformation.Login);
-
             _registration.SetActive(false);
-            _regGoFurther.SetActive(false);
-            _regResult.SetActive(false);
-
             _authorization.SetActive(false);
-            _authGoFurther.SetActive(false);
-            _authResult.SetActive(false);
-
             _mainMenu.SetActive(true);
         }
         else
@@ -199,16 +199,6 @@ public class Switcher : MonoBehaviour
             }
         }
 
-    }
-
-    public void Exit()
-    {
-        MainInformation.PlayerInformation = null;
-        MainInformation.SessionInformation = null;
-
-        _mainMenu.SetActive(false);
-        _pokerMenu.SetActive(false);
-        _registration.SetActive(true);
     }
 
     public void GetCallObjectLocation(string location)
